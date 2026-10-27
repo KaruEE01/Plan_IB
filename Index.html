@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Plan Zajęć IB - Smart Dashboard</title>
+
+  <!-- Konfiguracja PWA (aplikacja na telefon) -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#040711">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Plan IB">
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").catch(() => {});
+      });
+    }
+  </script>
+
+  <style>
+    :root {
+      --bg: #040711;
+      --panel-bg: rgba(14, 19, 36, 0.65);
+      --card-bg: rgba(20, 27, 48, 0.55);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(99, 102, 241, 0.5);
+      --primary: #6366f1;
+      --primary-glow: rgba(99, 102, 241, 0.35);
+      --accent: #10b981;
+      --accent-glow: rgba(16, 185, 129, 0.3);
+      --text: #f8fafc;
+      --subtext: #8b9bb4;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --tag-w: rgba(99, 102, 241, 0.18);
+      --tag-w-color: #a5b4fc;
+      --tag-lab: rgba(16, 185, 129, 0.18);
+      --tag-lab-color: #6ee7b7;
+      --tag-cw: rgba(245, 158, 11, 0.18);
+      --tag-cw-color: #fcd34d;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(30, 27, 75, 0.7) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(15, 43, 40, 0.5) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, rgba(15, 23, 42, 0.9) 0px, transparent 60%),
+        linear-gradient(180deg, #050814 0%, #080d1e 100%);
+      background-attachment: fixed;
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      padding: 18px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+    .clock-title { 
+      font-size: 1.25rem; 
+      font-weight: 800; 
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .clock-sub { font-size: 0.76rem; color: var(--subtext); margin-top: 3px; font-weight: 500; }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 9px 16px;
+      border-radius: 14px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      font-weight: 700;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .btn:active { transform: scale(0.94); }
+    .btn:hover { border-color: rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.09); }
+    .btn-accent { 
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%); 
+      color: #fff; 
+      border: none;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+    .btn-warning { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #000; border: none; }
+    .btn-danger { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: #fff; border: none; }
+
+    .dashboard-layout {
+      display: flex;
+      gap: 20px;
+      min-height: calc(100vh - 90px);
+    }
+
+    /* LEWA STRONA: KULA GRUPY + ŁUK DNI */
+    .left-rail {
+      width: 90px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      position: relative;
+    }
+
+    .group-orb {
+      width: 74px;
+      height: 74px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #4338ca 0%, #1e1b4b 65%, #090d1a 100%);
+      border: 1.5px solid rgba(165, 180, 252, 0.25);
+      box-shadow: 0 8px 25px var(--primary-glow), inset 0 0 15px rgba(255,255,255,0.1);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      margin-bottom: 24px;
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .group-orb:hover {
+      box-shadow: 0 0 35px rgba(99, 102, 241, 0.5);
+      border-color: rgba(255,255,255,0.4);
+    }
+    .group-orb:active { transform: scale(0.9); }
+    .group-orb-hint { font-size: 0.56rem; color: #a5b4fc; text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; }
+    .group-orb-val { font-size: 1.1rem; font-weight: 900; color: #fff; margin-top: 1px; }
+
+    .arc-days {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+    }
+
+    .day-orb {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #172033 0%, #0b1120 100%);
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      animation: arcPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+    .day-orb:hover { border-color: rgba(255,255,255,0.3); box-shadow: 0 0 18px rgba(99, 102, 241, 0.3); }
+    .day-orb.active {
+      background: radial-gradient(circle at 35% 30%, #4f46e5 0%, #312e81 100%);
+      border-color: rgba(255,255,255,0.45);
+      box-shadow: 0 0 24px var(--primary-glow);
+      transform: scale(1.12) !important;
+    }
+    .day-orb.is-today {
+      border-color: var(--accent);
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+
+    .day-orb-name { font-size: 0.88rem; font-weight: 800; letter-spacing: 0.02em; }
+    .day-orb-num { font-size: 0.64rem; color: var(--subtext); margin-top: 1px; font-weight: 600; }
+
+    .day-orb[data-day="1"] { transform: translateX(2px); animation-delay: 0.05s; }
+    .day-orb[data-day="2"] { transform: translateX(20px); animation-delay: 0.10s; }
+    .day-orb[data-day="3"] { transform: translateX(28px); animation-delay: 0.15s; }
+    .day-orb[data-day="4"] { transform: translateX(20px); animation-delay: 0.20s; }
+    .day-orb[data-day="5"] { transform: translateX(2px); animation-delay: 0.25s; }
+
+    @keyframes arcPop {
+      from { opacity: 0; transform: translateX(-35px) scale(0.3); }
+    }
+
+    /* PRAWA STRONA */
+    .right-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .status-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .info-window {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 14px 16px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      transition: transform 0.25s ease;
+    }
+    .info-window:hover { transform: translateY(-2px); }
+
+    .win-label {
+      font-size: 0.7rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--subtext);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    .win-val-large { font-size: 1.15rem; font-weight: 800; color: #fff; }
+    .win-sub { font-size: 0.74rem; color: var(--subtext); margin-top: 2px; }
+
+    .live-window {
+      background: linear-gradient(135deg, rgba(20, 28, 54, 0.7) 0%, rgba(16, 185, 129, 0.08) 100%);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      border-radius: 20px;
+      padding: 16px 18px;
+      backdrop-filter: blur(24px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(16, 185, 129, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
+    .live-window::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1.5px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    }
+
+    .live-dot {
+      width: 8px; height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent);
+      animation: pulse 1.6s infinite ease-in-out;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.85); } }
+
+    .countdown-timer {
+      font-size: 1.45rem;
+      font-weight: 900;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+      margin-top: 6px;
+      letter-spacing: -0.01em;
+    }
+
+    .schedule-window {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 18px 20px;
+      flex: 1;
+      backdrop-filter: blur(24px);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.45);
+    }
+
+    .schedule-win-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .schedule-win-title { font-size: 1.15rem; font-weight: 800; color: #a5b4fc; }
+
+    .class-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+      max-height: 480px;
+      padding-right: 4px;
+      scrollbar-width: thin;
+    }
+
+    .class-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      animation: cardIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    @keyframes cardIn { 
+      from { opacity: 0; transform: translateY(12px); } 
+      to { opacity: 1; transform: translateY(0); } 
+    }
+    .class-card:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.18); }
+
+    .class-card.is-active {
+      border-color: rgba(16, 185, 129, 0.45);
+      background: rgba(16, 185, 129, 0.08);
+      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.15);
+    }
+
+    .class-card.is-cancelled {
+      opacity: 0.45;
+      border-color: rgba(239, 68, 68, 0.3);
+      background: rgba(239, 68, 68, 0.04);
+    }
+    .class-card.is-cancelled .class-card-title {
+      text-decoration: line-through;
+      color: var(--danger);
+    }
+
+    .class-card-time { font-size: 0.92rem; font-weight: 800; color: #818cf8; width: 100px; flex-shrink: 0; }
+    .class-card.is-active .class-card-time { color: var(--accent); }
+    .class-card-info { flex: 1; padding: 0 12px; }
+    .class-card-title { font-size: 0.96rem; font-weight: 700; margin-bottom: 3px; color: #fff; }
+    .class-card-meta { font-size: 0.8rem; color: var(--subtext); }
+
+    .badge-bar { display: flex; gap: 5px; margin-top: 5px; align-items: center; flex-wrap: wrap; }
+    .type-pill {
+      font-size: 0.64rem;
+      font-weight: 700;
+      padding: 3px 7px;
+      border-radius: 7px;
+      letter-spacing: 0.03em;
+    }
+    .type-w { background: var(--tag-w); color: var(--tag-w-color); }
+    .type-lab { background: var(--tag-lab); color: var(--tag-lab-color); }
+    .type-cw { background: var(--tag-cw); color: var(--tag-cw-color); }
+    .type-cancelled { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+    .type-weekrange { background: rgba(255, 255, 255, 0.07); color: var(--subtext); }
+
+    .admin-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    /* Modale */
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 5, 12, 0.8);
+      backdrop-filter: blur(12px);
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      z-index: 100;
+      animation: modalFade 0.25s ease;
+    }
+    .modal.open { display: flex; }
+    @keyframes modalFade { from { opacity: 0; } to { opacity: 1; } }
+
+    .modal-box {
+      background: rgba(18, 25, 46, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 24px;
+      width: 100%;
+      max-width: 380px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+      animation: modalZoom 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes modalZoom { from { transform: scale(0.94); } to { transform: scale(1); } }
+
+    .modal-box input, .modal-box select {
+      background: rgba(8, 12, 24, 0.85);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+    .modal-box input:focus, .modal-box select:focus { border-color: var(--primary); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <div class="clock-title" id="fullTime">00:00:00</div>
+      <div class="clock-sub" id="fullDate">--</div>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn btn-accent" id="openAddClassBtn" style="display: none;">+ Odrabianie / Nowe</button>
+      <button class="btn" id="authBtn">Admin</button>
+    </div>
+  </header>
+
+  <div class="dashboard-layout">
+    
+    <!-- LEWA STRONA: KULA GRUPY + ŁUK DNI -->
+    <div class="left-rail">
+      <div class="group-orb" id="groupOrb" title="Kliknij, aby zmienić grupę">
+        <span class="group-orb-hint">Grupa</span>
+        <span class="group-orb-val" id="groupVal">GLA01</span>
+      </div>
+
+      <div class="arc-days">
+        <div class="day-orb" data-day="1">
+          <span class="day-orb-name">PON</span>
+          <span class="day-orb-num" id="cnt-1">0</span>
+        </div>
+        <div class="day-orb" data-day="2">
+          <span class="day-orb-name">WT</span>
+          <span class="day-orb-num" id="cnt-2">0</span>
+        </div>
+        <div class="day-orb" data-day="3">
+          <span class="day-orb-name">ŚR</span>
+          <span class="day-orb-num" id="cnt-3">0</span>
+        </div>
+        <div class="day-orb" data-day="4">
+          <span class="day-orb-name">CZW</span>
+          <span class="day-orb-num" id="cnt-4">0</span>
+        </div>
+        <div class="day-orb" data-day="5">
+          <span class="day-orb-name">PT</span>
+          <span class="day-orb-num" id="cnt-5">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRAWA STRONA -->
+    <div class="right-content">
+      
+      <div class="status-row">
+        <!-- Tydzień Akademicki -->
+        <div class="info-window">
+          <div class="win-label"><span>📅</span><span>Tydzień Uczelni</span></div>
+          <div class="win-val-large" id="academicWeek">Tydzień I (A)</div>
+          <div class="win-sub" id="academicWeekDetails">Semestr zimowy 2026/27</div>
+        </div>
+
+        <!-- Dni wolne -->
+        <div class="info-window">
+          <div class="win-label"><span>🏖️</span><span>Dni wolne</span></div>
+          <div class="win-val-large" id="freeDays">11 Listopada</div>
+          <div class="win-sub" id="freeDaysSub">Święto Niepodległości</div>
+        </div>
+      </div>
+
+      <!-- Karta Live z odliczaniem -->
+      <div class="live-window">
+        <div class="win-label" style="color: var(--accent);">
+          <span class="live-dot"></span>
+          <span id="liveTitle">Aktualne zajęcia</span>
+        </div>
+        <div style="font-size: 1.05rem; font-weight: 800; margin-bottom: 2px;" id="liveSubject">Sprawdzanie planu...</div>
+        <div style="font-size: 0.8rem; color: var(--subtext);" id="liveDetails">Sala: - • Prowadzący: -</div>
+        <div class="countdown-timer" id="timeRemaining">--:--</div>
+      </div>
+
+      <!-- Harmonogram wybranego dnia -->
+      <div class="schedule-window">
+        <div class="schedule-win-header">
+          <div>
+            <div class="schedule-win-title" id="selectedDayTitle">Poniedziałek</div>
+            <div style="font-size: 0.75rem; color: var(--subtext);" id="selectedGroupSubtitle">Inżynieria Biomedyczna • GLA01</div>
+          </div>
+        </div>
+        <div class="class-list" id="classList"></div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- MODAL ADMINA -->
+  <div id="loginModal" class="modal">
+    <div class="modal-box">
+      <h3 style="font-size: 1.15rem; font-weight: 800;">Logowanie Administratora</h3>
+      <input type="password" id="loginPassword" placeholder="Wpisz hasło administratora" />
+      <button class="btn btn-accent" id="loginSubmit">Zaloguj</button>
+      <button class="btn" id="loginCancel">Anuluj</button>
+    </div>
+  </div>
+
+  <!-- MODAL DODAWANIA / ODRABIANIA ZAJĘĆ -->
+  <div id="addClassModal" class="modal">
+    <div class="modal-box">
+      <h3 style="font-size: 1.15rem; font-weight: 800;">Dodaj / Odrób zajęcia</h3>
+      <input type="text" id="subSubject" placeholder="Nazwa przedmiotu (np. Odrabianie: Fizyka)" />
+      <input type="text" id="subTime" placeholder="Godziny (np. 12:15 - 14:00)" />
+      <input type="text" id="subRoom" placeholder="Sala (np. E414)" />
+      <input type="text" id="subTeacher" placeholder="Prowadzący" />
+      <select id="subGroup">
+        <option value="GLA01">GLA01</option>
+        <option value="GLA02">GLA02</option>
+        <option value="Wszystkie">Obie grupy (Wspólne)</option>
+      </select>
+      <select id="subDay">
+        <option value="1">Poniedziałek</option>
+        <option value="2">Wtorek</option>
+        <option value="3">Środa</option>
+        <option value="4">Czwartek</option>
+        <option value="5">Piątek</option>
+      </select>
+      <select id="subParity">
+        <option value="ALL">Wszystkie tygodnie</option>
+        <option value="A">Tylko Tydzień I (A - nieparzyste 1t.)</option>
+        <option value="B">Tylko Tydzień II (B - parzyste 2t.)</option>
+      </select>
+      <input type="text" id="subWeeks" placeholder="Zakres tygodni (np. 1-8 lub puste jeśli cały semestr)" />
+      <button class="btn btn-accent" id="addClassSubmit">Zapisz w harmonogramie</button>
+      <button class="btn" id="addClassCancel">Anuluj</button>
+    </div>
+  </div>
+
+  <script>
+    const daysNames = {
+      1: "Poniedziałek",
+      2: "Wtorek",
+      3: "Środa",
+      4: "Czwartek",
+      5: "Piątek"
+    };
+
+    // Kalendarz Politechniki Lubelskiej 2026/2027 (zarządzenie R-45/2026)
+    const semesterCalendar = [
+      { start: "2026-10-01", end: "2026-10-04", type: "I (A)", parity: "A", weekNum: 1 },
+      { start: "2026-10-05", end: "2026-10-11", type: "II (B)", parity: "B", weekNum: 1 },
+      { start: "2026-10-12", end: "2026-10-18", type: "I (A)", parity: "A", weekNum: 2 },
+      { start: "2026-10-19", end: "2026-10-25", type: "II (B)", parity: "B", weekNum: 3 },
+      { start: "2026-10-26", end: "2026-11-01", type: "I (A)", parity: "A", weekNum: 4 },
+      { start: "2026-11-02", end: "2026-11-08", type: "II (B)", parity: "B", weekNum: 5 },
+      { start: "2026-11-09", end: "2026-11-15", type: "I (A)", parity: "A", weekNum: 6 },
+      { start: "2026-11-16", end: "2026-11-22", type: "II (B)", parity: "B", weekNum: 7 },
+      { start: "2026-11-23", end: "2026-11-29", type: "I (A)", parity: "A", weekNum: 8 },
+      { start: "2026-11-30", end: "2026-12-06", type: "II (B)", parity: "B", weekNum: 9 },
+      { start: "2026-12-07", end: "2026-12-13", type: "I (A)", parity: "A", weekNum: 10 },
+      { start: "2026-12-14", end: "2026-12-20", type: "II (B)", parity: "B", weekNum: 11 },
+      { start: "2026-12-21", end: "2026-12-22", type: "I (A)", parity: "A", weekNum: 12 },
+      { start: "2027-01-07", end: "2027-01-10", type: "I (A)", parity: "A", weekNum: 12 },
+      { start: "2027-01-11", end: "2027-01-17", type: "II (B)", parity: "B", weekNum: 13 },
+      { start: "2027-01-18", end: "2027-01-24", type: "I (A)", parity: "A", weekNum: 14 },
+      { start: "2027-01-25", end: "2027-01-31", type: "II (B)", parity: "B", weekNum: 15 }
+    ];
+
+    const defaultSchedule = [
+      // PONIEDZIAŁEK
+      { id: "1a", group: "GLA01", day: 1, time: "08:00 - 11:00", subject: "Podstawy projektowania inżynierskiego - W (1-8t.)", room: "M-IV", teacher: "prof. dr hab. inż. Anna Rudawska", weeks: [1, 8], parity: "ALL" },
+      { id: "1b", group: "GLA02", day: 1, time: "08:00 - 11:00", subject: "Podstawy projektowania inżynierskiego - W (1-8t.)", room: "M-IV", teacher: "prof. dr hab. inż. Anna Rudawska", weeks: [1, 8], parity: "ALL" },
+      { id: "1c", group: "GLA01", day: 1, time: "11:00 - 14:00", subject: "Podstawy projektowania inżynierskiego - lab (1-8t.)", room: "M701", teacher: "prof. dr hab. inż. Anna Rudawska", weeks: [1, 8], parity: "ALL" },
+      { id: "1d", group: "GLA02", day: 1, time: "12:15 - 14:00", subject: "Wytrzymałość materiałów - lab", room: "CI409", teacher: "mgr inż. Sylwester Tudruj", parity: "ALL" },
+      { id: "1e", group: "GLA01", day: 1, time: "14:15 - 16:00", subject: "Analiza danych pomiarowych - lab (1t.)", room: "CI510", teacher: "dr inż. Wojciech Daniłczuk", parity: "A" },
+      { id: "1f", group: "GLA02", day: 1, time: "14:15 - 16:00", subject: "Analiza danych pomiarowych - lab (2t.)", room: "CI510", teacher: "dr inż. Wojciech Daniłczuk", parity: "B" },
+      { id: "1g", group: "GLA01", day: 1, time: "16:15 - 18:00", subject: "Analiza danych pomiarowych - W (1-8t.)", room: "M-VI", teacher: "dr inż. Wojciech Daniłczuk", weeks: [1, 8], parity: "ALL" },
+      { id: "1h", group: "GLA02", day: 1, time: "16:15 - 18:00", subject: "Analiza danych pomiarowych - W (1-8t.)", room: "M-VI", teacher: "dr inż. Wojciech Daniłczuk", weeks: [1, 8], parity: "ALL" },
+
+      // WTOREK
+      { id: "2", group: "GLA01", day: 2, time: "08:15 - 10:00", subject: "Mechanika techniczna - W", room: "M-VII", teacher: "prof. dr hab. inż. Rafał Rusinek", parity: "ALL" },
+      { id: "3", group: "GLA02", day: 2, time: "08:15 - 10:00", subject: "Mechanika techniczna - W", room: "M-VII", teacher: "prof. dr hab. inż. Rafał Rusinek", parity: "ALL" },
+      { id: "4", group: "GLA01", day: 2, time: "10:15 - 12:00", subject: "Mechanika techniczna - ćw", room: "M-VII", teacher: "prof. dr hab. inż. Rafał Rusinek", parity: "ALL" },
+      { id: "5", group: "GLA02", day: 2, time: "10:15 - 12:00", subject: "Mechanika techniczna - ćw", room: "M-VII", teacher: "prof. dr hab. inż. Rafał Rusinek", parity: "ALL" },
+      { id: "6", group: "GLA01", day: 2, time: "12:15 - 14:00", subject: "Wytrzymałość materiałów - W", room: "M-VII", teacher: "dr hab. inż. Jarosław Latalski, prof. uczelni", parity: "ALL" },
+      { id: "7", group: "GLA02", day: 2, time: "12:15 - 14:00", subject: "Wytrzymałość materiałów - W", room: "M-VII", teacher: "dr hab. inż. Jarosław Latalski, prof. uczelni", parity: "ALL" },
+      { id: "7b", group: "GLA02", day: 2, time: "15:30 - 18:30", subject: "Podstawy projektowania inżynierskiego - lab (1-8t.)", room: "M701", teacher: "prof. dr hab. inż. Anna Rudawska", weeks: [1, 8], parity: "ALL" },
+      { id: "8", group: "GLA01", day: 2, time: "16:15 - 18:00", subject: "Wytrzymałość materiałów - lab", room: "CI409", teacher: "mgr inż. Sylwester Tudruj", parity: "ALL" },
+
+      // ŚRODA
+      { id: "9", group: "GLA01", day: 3, time: "08:15 - 10:00", subject: "Język nowożytny II - ćw", room: "M-VI", teacher: "", parity: "ALL" },
+      { id: "10", group: "GLA02", day: 3, time: "08:15 - 10:00", subject: "Język nowożytny II - ćw", room: "M-VI", teacher: "", parity: "ALL" },
+      { id: "11", group: "GLA01", day: 3, time: "10:15 - 13:00", subject: "Biofizyka i fizyka współczesna - W", room: "M-VI", teacher: "dr inż. K. Czarnacka", parity: "ALL" },
+      { id: "12", group: "GLA02", day: 3, time: "10:15 - 13:00", subject: "Biofizyka i fizyka współczesna - W", room: "M-VI", teacher: "dr inż. K. Czarnacka", parity: "ALL" },
+      { id: "13", group: "GLA01", day: 3, time: "13:15 - 15:30", subject: "Elektroniczna aparatura medyczna - W (2-11t.)", room: "M-VI", teacher: "prof. dr hab. inż. O. Hotra", weeks: [2, 11], parity: "ALL" },
+      { id: "14", group: "GLA02", day: 3, time: "13:15 - 15:30", subject: "Elektroniczna aparatura medyczna - W (2-11t.)", room: "M-VI", teacher: "prof. dr hab. inż. O. Hotra", weeks: [2, 11], parity: "ALL" },
+
+      // CZWARTEK
+      { id: "15", group: "GLA01", day: 4, time: "10:00 - 12:15", subject: "Podstawy fizjologii, sztuczne narządy i implanty - W", room: "Aula I", teacher: "dr Leszek Zakrzewski", parity: "ALL" },
+      { id: "16", group: "GLA02", day: 4, time: "10:00 - 12:15", subject: "Podstawy fizjologii, sztuczne narządy i implanty - W", room: "Aula I", teacher: "dr Leszek Zakrzewski", parity: "ALL" },
+      { id: "17", group: "GLA02", day: 4, time: "13:00 - 14:30", subject: "Podstawy fizjologii, sztuczne narządy i implanty - lab", room: "E309", teacher: "dr Leszek Zakrzewski", parity: "ALL" },
+      { id: "18", group: "GLA01", day: 4, time: "14:45 - 16:15", subject: "Podstawy fizjologii, sztuczne narządy i implanty - lab", room: "E309", teacher: "dr Leszek Zakrzewski", parity: "ALL" },
+
+      // PIĄTEK
+      { id: "19", group: "GLA01", day: 5, time: "08:00 - 10:15", subject: "Biofizyka i fizyka współczesna - lab (1-10t.)", room: "E414", teacher: "dr inż. T. Pikuła", weeks: [1, 10], parity: "ALL" },
+      { id: "20", group: "GLA01", day: 5, time: "10:30 - 12:45", subject: "Elektroniczna aparatura medyczna - lab (1-10t.)", room: "CI421B", teacher: "dr inż. M. Maciejewski", weeks: [1, 10], parity: "ALL" },
+      { id: "21", group: "GLA02", day: 5, time: "10:30 - 12:45", subject: "Biofizyka i fizyka współczesna - lab (1-10t.)", room: "E414", teacher: "dr inż. K. Czarnacka", weeks: [1, 10], parity: "ALL" },
+      { id: "22", group: "GLA02", day: 5, time: "13:00 - 15:15", subject: "Elektroniczna aparatura medyczna - lab (1-10t.)", room: "CI421B", teacher: "dr inż. M. Maciejewski", weeks: [1, 10], parity: "ALL" }
+    ];
+
+    let schedule = defaultSchedule;
+    try {
+      const stored = localStorage.getItem("ib_schedule_v_app");
+      if (stored) schedule = JSON.parse(stored);
+    } catch(e) {
+      schedule = defaultSchedule;
+    }
+
+    let cancelledMap = {};
+    try {
+      const storedCancels = localStorage.getItem("ib_cancelled_app");
+      if (storedCancels) cancelledMap = JSON.parse(storedCancels);
+    } catch(e) {}
+
+    let selectedGroup = "GLA01";
+    const curD = new Date().getDay();
+    let selectedDay = (curD >= 1 && curD <= 5) ? curD : 1;
+    let isAdmin = false;
+
+    // UI
+    const groupVal = document.getElementById("groupVal");
+    const groupOrb = document.getElementById("groupOrb");
+    const fullTime = document.getElementById("fullTime");
+    const fullDate = document.getElementById("fullDate");
+    const academicWeek = document.getElementById("academicWeek");
+    const academicWeekDetails = document.getElementById("academicWeekDetails");
+    const freeDays = document.getElementById("freeDays");
+    const freeDaysSub = document.getElementById("freeDaysSub");
+    const liveTitle = document.getElementById("liveTitle");
+    const liveSubject = document.getElementById("liveSubject");
+    const liveDetails = document.getElementById("liveDetails");
+    const timeRemaining = document.getElementById("timeRemaining");
+    const selectedDayTitle = document.getElementById("selectedDayTitle");
+    const selectedGroupSubtitle = document.getElementById("selectedGroupSubtitle");
+    const classList = document.getElementById("classList");
+    const openAddClassBtn = document.getElementById("openAddClassBtn");
+
+    function timeToMinutes(tStr) {
+      if (!tStr) return 0;
+      const parts = tStr.trim().split(":");
+      return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    }
+
+    function getBadge(subject) {
+      const s = (subject || "").toLowerCase();
+      if (s.includes("- lab")) return `<span class="type-pill type-lab">LAB</span>`;
+      if (s.includes("- w")) return `<span class="type-pill type-w">WYKŁAD</span>`;
+      if (s.includes("- ćw")) return `<span class="type-pill type-cw">ĆWICZENIA</span>`;
+      return "";
+    }
+
+    function getCurrentAcademicWeek(date) {
+      const iso = date.toISOString().split("T")[0];
+      for (const item of semesterCalendar) {
+        if (iso >= item.start && iso <= item.end) {
+          return { type: `Tydzień ${item.type}`, parity: item.parity, weekNum: item.weekNum, note: `${item.weekNum}. tydzień semestru` };
+        }
+      }
+      return { type: "Przerwa", parity: "ALL", weekNum: 99, note: "Brak zajęć" };
+    }
+
+    function isClassActiveInWeek(item, weekInfo) {
+      if (item.parity && item.parity !== "ALL") {
+        if (weekInfo.parity !== "ALL" && item.parity !== weekInfo.parity) {
+          return false;
+        }
+      }
+      if (item.weeks && item.weeks.length === 2) {
+        const [start, end] = item.weeks;
+        if (weekInfo.weekNum < start || weekInfo.weekNum > end) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function getNextFreePeriod(date) {
+      const iso = date.toISOString().split("T")[0];
+      if (iso < "2026-11-01") return { title: "1 Listopada", sub: "Wszystkich Świętych" };
+      if (iso < "2026-11-11") return { title: "11 Listopada", sub: "Święto Niepodległości" };
+      if (iso < "2026-12-23") return { title: "23 Gru - 6 Sty", sub: "Przerwa świąteczna" };
+      return { title: "Sesja zimowa", sub: "Koniec semestru" };
+    }
+
+    function updateClockAndLiveWidget() {
+      const now = new Date();
+      const days = ["Niedziela", "Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota"];
+      const months = ["stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia", "września", "października", "listopada", "grudnia"];
+
+      fullTime.textContent = now.toTimeString().split(" ")[0];
+      fullDate.textContent = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]}`;
+
+      const weekInfo = getCurrentAcademicWeek(now);
+      academicWeek.textContent = weekInfo.type;
+      academicWeekDetails.textContent = weekInfo.note;
+
+      const freeInfo = getNextFreePeriod(now);
+      freeDays.textContent = freeInfo.title;
+      freeDaysSub.textContent = freeInfo.sub;
+
+      const currentDay = now.getDay();
+      const currentSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      for (let d = 1; d <= 5; d++) {
+        const count = schedule.filter(s => 
+          (s.group === selectedGroup || s.group === "Wszystkie") && 
+          s.day === d && 
+          isClassActiveInWeek(s, weekInfo)
+        ).length;
+        const el = document.getElementById(`cnt-${d}`);
+        if (el) el.textContent = `${count}`;
+      }
+
+      document.querySelectorAll(".day-orb").forEach(orb => {
+        orb.classList.toggle("is-today", parseInt(orb.getAttribute("data-day")) === currentDay);
+      });
+
+      const todayClasses = schedule.filter(item => 
+        (item.group === selectedGroup || item.group === "Wszystkie") && 
+        item.day === currentDay &&
+        isClassActiveInWeek(item, weekInfo)
+      );
+
+      let ongoing = null;
+      let nextUp = null;
+
+      for (const item of todayClasses) {
+        if (!item.time || !item.time.includes("-")) continue;
+        if (cancelledMap[item.id]) continue;
+
+        const [s, e] = item.time.split("-");
+        const sMin = timeToMinutes(s);
+        const eMin = timeToMinutes(e);
+
+        if (currentMinutes >= sMin && currentMinutes < eMin) {
+          ongoing = item;
+          break;
+        } else if (currentMinutes < sMin && (!nextUp || sMin < timeToMinutes(nextUp.time.split("-")[0]))) {
+          nextUp = item;
+        }
+      }
+
+      if (ongoing) {
+        liveTitle.textContent = "Aktualnie trwa";
+        liveSubject.textContent = ongoing.subject.replace(/ - (lab|W|ćw).*$/, '');
+        liveDetails.textContent = `Sala: ${ongoing.room || '-'} • Prowadzący: ${ongoing.teacher || 'Brak danych'}`;
+
+        const endMinutes = timeToMinutes(ongoing.time.split("-")[1]);
+        const endSeconds = endMinutes * 60;
+        const diff = endSeconds - currentSeconds;
+
+        if (diff > 0) {
+          const m = Math.floor(diff / 60);
+          const s = diff % 60;
+          timeRemaining.textContent = `Koniec za: ${m}m ${s < 10 ? '0' : ''}${s}s`;
+        } else {
+          timeRemaining.textContent = "Koniec zajęć";
+        }
+      } else if (nextUp) {
+        liveTitle.textContent = "Następne dzisiaj";
+        liveSubject.textContent = nextUp.subject.replace(/ - (lab|W|ćw).*$/, '');
+        liveDetails.textContent = `Sala: ${nextUp.room || '-'} • Godz: ${nextUp.time.split("-")[0].trim()}`;
+        
+        const startMinutes = timeToMinutes(nextUp.time.split("-")[0]);
+        const startSeconds = startMinutes * 60;
+        const diff = startSeconds - currentSeconds;
+        const m = Math.floor(diff / 60);
+        timeRemaining.textContent = `Początek za: ${m} min`;
+      } else {
+        liveTitle.textContent = "Status dnia";
+        liveSubject.textContent = (currentDay >= 1 && currentDay <= 5) ? "Koniec zajęć na dzisiaj ✨" : "Weekend – brak zajęć ✨";
+        liveDetails.textContent = "Czas na odpoczynek i regenerację!";
+        timeRemaining.textContent = "--:--";
+      }
+    }
+
+    function renderSelectedDay() {
+      selectedDayTitle.textContent = daysNames[selectedDay];
+      selectedGroupSubtitle.textContent = `Inżynieria Biomedyczna • ${selectedGroup}`;
+      classList.innerHTML = "";
+
+      document.querySelectorAll(".day-orb").forEach(b => {
+        b.classList.toggle("active", parseInt(b.getAttribute("data-day")) === selectedDay);
+      });
+
+      const now = new Date();
+      const curDay = now.getDay();
+      const curMins = now.getHours() * 60 + now.getMinutes();
+      const weekInfo = getCurrentAcademicWeek(now);
+
+      const items = schedule.filter(s => 
+        (s.group === selectedGroup || s.group === "Wszystkie") && 
+        s.day === selectedDay &&
+        isClassActiveInWeek(s, weekInfo)
+      );
+      items.sort((a, b) => a.time.localeCompare(b.time));
+
+      if (items.length === 0) {
+        classList.innerHTML = `<div style="text-align:center; padding: 36px 12px; color: var(--subtext); font-size: 0.88rem;">Brak zajęć w tym dniu w bieżącym tygodniu (${weekInfo.type}) 🎉</div>`;
+        return;
+      }
+
+      items.forEach((item, idx) => {
+        const isCancelled = !!cancelledMap[item.id];
+        let isNow = false;
+        if (!isCancelled && selectedDay === curDay && item.time && item.time.includes("-")) {
+          const [s, e] = item.time.split("-");
+          if (curMins >= timeToMinutes(s) && curMins < timeToMinutes(e)) isNow = true;
+        }
+
+        const weekLabel = item.weeks ? `${item.weeks[0]}-${item.weeks[1]}t.` : '';
+        const parityLabel = (item.parity === 'A') ? 'Tydzień I (1t.)' : (item.parity === 'B' ? 'Tydzień II (2t.)' : '');
+
+        const card = document.createElement("div");
+        card.className = `class-card ${isNow ? 'is-active' : ''} ${isCancelled ? 'is-cancelled' : ''}`;
+        card.style.animationDelay = `${idx * 0.04}s`;
+        card.innerHTML = `
+          <div class="class-card-time">
+            ${item.time}
+            ${isNow ? '<br><span style="font-size:0.65rem; color:var(--accent);">● TRWA</span>' : ''}
+            ${isCancelled ? '<br><span style="font-size:0.65rem; color:var(--danger);">ODWOŁANE</span>' : ''}
+          </div>
+          <div class="class-card-info">
+            <div class="class-card-title">${item.subject.replace(/ - (lab|W|ćw).*$/, '')}</div>
+            <div class="class-card-meta">Sala: <b>${item.room || '-'}</b> • ${item.teacher || 'Brak danych'}</div>
+            <div class="badge-bar">
+              ${getBadge(item.subject)}
+              ${parityLabel ? `<span class="type-pill type-weekrange" style="color:#a5b4fc;">${parityLabel}</span>` : ''}
+              ${weekLabel ? `<span class="type-pill type-weekrange">${weekLabel}</span>` : ''}
+              ${isCancelled ? `<span class="type-pill type-cancelled">ODWOŁANE</span>` : ''}
+            </div>
+          </div>
+          ${isAdmin ? `
+            <div class="admin-controls">
+              <button class="btn btn-warning toggle-cancel-btn" data-id="${item.id}" style="padding: 4px 8px; font-size: 0.65rem;">
+                ${isCancelled ? 'Przywróć' : 'Odwołaj'}
+              </button>
+              <button class="btn btn-danger btn-del" data-id="${item.id}" style="padding: 4px 8px; font-size: 0.65rem;">
+                Usuń
+              </button>
+            </div>
+          ` : ''}
+        `;
+        classList.appendChild(card);
+      });
+
+      if (isAdmin) {
+        document.querySelectorAll(".toggle-cancel-btn").forEach(b => {
+          b.onclick = (e) => {
+            const id = b.getAttribute("data-id");
+            if (cancelledMap[id]) delete cancelledMap[id];
+            else cancelledMap[id] = true;
+            try { localStorage.setItem("ib_cancelled_app", JSON.stringify(cancelledMap)); } catch(e){}
+            renderSelectedDay();
+            updateClockAndLiveWidget();
+          };
+        });
+
+        document.querySelectorAll(".btn-del").forEach(b => {
+          b.onclick = (e) => {
+            const id = b.getAttribute("data-id");
+            if (confirm("Usunąć te zajęcia na stałe z harmonogramu?")) {
+              schedule = schedule.filter(s => s.id !== id);
+              try { localStorage.setItem("ib_schedule_v_app", JSON.stringify(schedule)); } catch(e){}
+              renderSelectedDay();
+              updateClockAndLiveWidget();
+            }
+          };
+        });
+      }
+    }
+
+    groupOrb.onclick = () => {
+      selectedGroup = (selectedGroup === "GLA01") ? "GLA02" : "GLA01";
+      groupVal.textContent = selectedGroup;
+      renderSelectedDay();
+      updateClockAndLiveWidget();
+    };
+
+    document.querySelectorAll(".day-orb").forEach(orb => {
+      orb.onclick = () => {
+        selectedDay = parseInt(orb.getAttribute("data-day"));
+        renderSelectedDay();
+      };
+    });
+
+    // Admin
+    const loginModal = document.getElementById("loginModal");
+    const addClassModal = document.getElementById("addClassModal");
+
+    document.getElementById("authBtn").onclick = () => loginModal.classList.add("open");
+    document.getElementById("loginCancel").onclick = () => loginModal.classList.remove("open");
+    document.getElementById("loginSubmit").onclick = () => {
+      const p = document.getElementById("loginPassword").value;
+      if (p === "admin" || p === "1234") {
+        isAdmin = true;
+        openAddClassBtn.style.display = "inline-flex";
+        alert("Zalogowano jako Administrator!");
+        loginModal.classList.remove("open");
+        document.getElementById("loginPassword").value = "";
+        renderSelectedDay();
+      } else {
+        alert("Błędne hasło!");
+      }
+    };
+
+    openAddClassBtn.onclick = () => addClassModal.classList.add("open");
+    document.getElementById("addClassCancel").onclick = () => addClassModal.classList.remove("open");
+
+    document.getElementById("addClassSubmit").onclick = () => {
+      const subject = document.getElementById("subSubject").value.trim();
+      const time = document.getElementById("subTime").value.trim();
+      const room = document.getElementById("subRoom").value.trim();
+      const teacher = document.getElementById("subTeacher").value.trim();
+      const group = document.getElementById("subGroup").value;
+      const day = parseInt(document.getElementById("subDay").value);
+      const parity = document.getElementById("subParity").value;
+      const weeksStr = document.getElementById("subWeeks").value.trim();
+
+      if (!subject || !time) return alert("Podaj przedmiot i godziny!");
+
+      let weeksArr = null;
+      if (weeksStr.includes("-")) {
+        const parts = weeksStr.replace("t", "").split("-");
+        weeksArr = [parseInt(parts[0], 10), parseInt(parts[1], 10)];
+      }
+
+      const newItem = {
+        id: Date.now().toString(),
+        subject, time, room, teacher, group, day, parity,
+        ...(weeksArr ? { weeks: weeksArr } : {})
+      };
+
+      if (group === "Wszystkie") {
+        schedule.push({ ...newItem, group: "GLA01" });
+        schedule.push({ ...newItem, id: (Date.now() + 1).toString(), group: "GLA02" });
+      } else {
+        schedule.push(newItem);
+      }
+
+      try { localStorage.setItem("ib_schedule_v_app", JSON.stringify(schedule)); } catch(e){}
+      addClassModal.classList.remove("open");
+      renderSelectedDay();
+      updateClockAndLiveWidget();
+    };
+
+    renderSelectedDay();
+    updateClockAndLiveWidget();
+    setInterval(updateClockAndLiveWidget, 1000);
+  </script>
+</body>
+</html>
